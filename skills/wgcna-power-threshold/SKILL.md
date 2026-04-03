@@ -46,23 +46,7 @@ rsync -aL yew:<path/to/wgcnaInput_secondstrand.txt> /tmp/$ARGUMENTS/
 Run R to compare column means:
 
 ```bash
-Rscript - <<'EOF'
-first  <- read.table("/tmp/$ARGUMENTS/wgcnaInput_firststrand.txt",  header=TRUE, row.names=1, sep="\t", check.names=FALSE)
-second <- read.table("/tmp/$ARGUMENTS/wgcnaInput_secondstrand.txt", header=TRUE, row.names=1, sep="\t", check.names=FALSE)
-first_mean  <- mean(colMeans(first,  na.rm=TRUE))
-second_mean <- mean(colMeans(second, na.rm=TRUE))
-cat("First strand mean: ",  first_mean,  "\n")
-cat("Second strand mean: ", second_mean, "\n")
-ratio <- max(first_mean, second_mean) / min(first_mean, second_mean)
-cat("Ratio: ", ratio, "\n")
-if (ratio < 2) {
-  cat("AMBIGUOUS: means are too similar to determine sense strand.\n")
-} else if (first_mean > second_mean) {
-  cat("SELECTED: firststrand\n")
-} else {
-  cat("SELECTED: secondstrand\n")
-}
-EOF
+Rscript ${CLAUDE_SKILL_DIR}/../../bin/select-strand.R $ARGUMENTS
 ```
 
 - If output is `AMBIGUOUS`, stop and tell the user the strand could not be determined (report both means).
@@ -125,47 +109,7 @@ EOF
 ## Step 8 — Determine WGCNA soft-threshold power and save plot
 
 ```bash
-Rscript - <<'EOF'
-library(WGCNA)
-options(stringsAsFactors = FALSE)
-
-input_file <- list.files("/tmp/$ARGUMENTS", pattern = "wgcnaInput.*\\.txt|profiles\\.txt", full.names = TRUE)[1]
-cat("Using input file:", input_file, "\n")
-
-data <- read.table(input_file, header=TRUE, row.names=1, sep="\t", check.names=FALSE)
-# samples as rows, genes as columns
-expr <- t(data)
-
-powers <- c(1:30)
-sft <- pickSoftThreshold(expr, powerVector = powers, verbose = 5)
-
-cat("\nRecommended soft-threshold power:", sft$powerEstimate, "\n")
-if (is.na(sft$powerEstimate)) {
-  cat("\nScale-free topology fit table:\n")
-  print(sft$fitIndices)
-}
-
-# Save power-threshold selection plot
-pdf("/tmp/$ARGUMENTS/power_threshold_plot.pdf", width = 9, height = 5)
-par(mfrow = c(1, 2))
-plot(sft$fitIndices[, 1],
-     -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
-     xlab = "Soft Threshold (power)",
-     ylab = "Scale Free Topology Model Fit, signed R\u00b2",
-     type = "n", main = "Scale independence")
-text(sft$fitIndices[, 1],
-     -sign(sft$fitIndices[, 3]) * sft$fitIndices[, 2],
-     labels = powers, col = "red")
-abline(h = 0.85, col = "red", lty = 2)
-plot(sft$fitIndices[, 1], sft$fitIndices[, 5],
-     xlab = "Soft Threshold (power)",
-     ylab = "Mean Connectivity",
-     type = "n", main = "Mean connectivity")
-text(sft$fitIndices[, 1], sft$fitIndices[, 5],
-     labels = powers, col = "red")
-dev.off()
-cat("Plot saved to /tmp/$ARGUMENTS/power_threshold_plot.pdf\n")
-EOF
+Rscript ${CLAUDE_SKILL_DIR}/../../bin/wgcna-power-threshold.R $ARGUMENTS
 ```
 
 Capture the recommended power as `softThresholdPower`. If it is `NA`, stop and tell the user no clear threshold was found and show the fit table.
